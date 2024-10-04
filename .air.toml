@@ -1,0 +1,34 @@
+# Root directory
+root = "."
+tmp_dir = "tmp"
+
+# Build options
+[build]
+  # The working directory to run `go build`
+  cmd = "go build -o ./tmp/main ./cmd/main.go"
+  bin = "tmp/main"            # Binary output file
+  full_bin = ""                # If not empty, use this as 'bin'
+  log = "stdout"               # Log build process to (stdout, stderr, or 'path/to/log/file')
+  include_ext = ["go"]         # Files with these extensions will trigger a rebuild
+  exclude_dir = ["vendor", "tmp"] # Ignore these directories
+  exclude_file = ["go.mod"]    # Ignore these files
+  exclude_regex = ["_test.go"] # Ignore files matching regex patterns
+
+# Running options
+[run]
+  cmd = "./tmp/main"           # Command to run
+  args = []                    # Command line arguments for the binary
+  env = ["APP_ENV=dev"]        # Environment variables
+  grace_time = 2000            # Time to wait before restarting the app (milliseconds)
+  output = "stdout"            # Log runtime output to (stdout, stderr, or 'path/to/log/file')
+
+# Watcher options
+[watcher]
+  include_dir = ["."]          # Watch these directories
+  exclude_dir = ["vendor", "tmp"] # Exclude these directories from watching
+  # Delays
+  delay = 1000                 # Delay time in milliseconds
+
+# Logger options
+[log]
+  time = false                 # Log timestamp
