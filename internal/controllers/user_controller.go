@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"time"
 )
 
 type UserRegister struct {
@@ -27,6 +28,14 @@ type UserLogin struct {
 
 var validate = validator.New()
 
+// Register handles user registration requests.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid request body or password hashing failure.
+// - 409 Conflict: User already exists.
+// - 201 Created: Registration successful with a success message in JSON format.
 func Register(c *fiber.Ctx) error {
 	// Get user info from body
 	var userBody UserRegister
@@ -62,7 +71,6 @@ func Register(c *fiber.Ctx) error {
 	user := models.User{
 		FirstName: userBody.Firstname,
 		LastName:  userBody.Lastname,
-		Country:   userBody.Country,
 		Email:     userBody.Email,
 		Password:  string(hash),
 	}
@@ -79,11 +87,37 @@ func Register(c *fiber.Ctx) error {
 		RefreshToken: auth.GenerateRefreshToken(user),
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(
-		tokens,
-	)
+	// Set Access Token in the Cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    tokens.AccessToken,
+		Expires:  time.Now().Add(time.Minute * 15),
+		HTTPOnly: true,
+		Secure:   false,
+	})
+
+	// Set Refresh Token in the Cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    tokens.RefreshToken,
+		Expires:  time.Now().Add(time.Hour * 24 * 7 * 4),
+		HTTPOnly: true,
+		Secure:   false,
+	})
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Register successful",
+	})
 }
 
+// Login handles user login requests.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid request body.
+// - 401 Unauthorized: Authentication failed due to invalid email or password.
+// - 200 OK: Login successful with a success message in JSON format.
 func Login(c *fiber.Ctx) error {
 	// Get credentials
 	var userBody UserLogin
@@ -118,10 +152,27 @@ func Login(c *fiber.Ctx) error {
 		RefreshToken: auth.GenerateRefreshToken(user),
 	}
 
-	// Return tokens
-	return c.Status(fiber.StatusOK).JSON(
-		tokens,
-	)
+	// Set Access Token in the Cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "accessToken",
+		Value:    tokens.AccessToken,
+		Expires:  time.Now().Add(time.Minute * 15),
+		HTTPOnly: true,
+		Secure:   false,
+	})
+
+	// Set Refresh Token in the Cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "refreshToken",
+		Value:    tokens.RefreshToken,
+		Expires:  time.Now().Add(time.Hour * 24 * 7 * 4),
+		HTTPOnly: true,
+		Secure:   false,
+	})
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Login successful",
+	})
 }
 
 func Refresh(c *fiber.Ctx) error {
