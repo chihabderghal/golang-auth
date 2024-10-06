@@ -5,7 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func Router(c *fiber.App) {
+func GlobalRouter(c *fiber.App) {
 
 	c.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -13,7 +13,7 @@ func Router(c *fiber.App) {
 		})
 	})
 
-	c.Post("/api/register", controllers.Register)
-	c.Post("/api/login", controllers.Login)
-	c.Post("/api/refresh", controllers.Refresh)
+	c.Post("/api/auth/register", controllers.Register)
+	c.Post("/api/auth/login", controllers.Login)
+	c.Post("/api/auth/refresh", controllers.Refresh)
 }
