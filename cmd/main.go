@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/chihabderghal/user-service/internal/config"
-	"github.com/chihabderghal/user-service/routes"
+	"github.com/chihabderghal/user-service/internal/routes"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"os"
@@ -19,7 +19,8 @@ func main() {
 	port := os.Getenv("PORT")
 
 	// Setup routes
-	routes.Router(app)
+	routes.GlobalRouter(app)
+	routes.GlobalRouter(app)
 
 	log.Fatal(app.Listen(":" + port))
 }
