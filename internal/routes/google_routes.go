@@ -3,6 +3,8 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"github.com/chihabderghal/user-service/internal/auth"
+	"github.com/chihabderghal/user-service/internal/config"
 	"github.com/chihabderghal/user-service/pkg/models"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
@@ -10,6 +12,17 @@ import (
 	"io"
 	"os"
 )
+
+type GoogleUser struct {
+	Email         string `json:"email"`
+	FamilyName    string `json:"family_name"`
+	GivenName     string `json:"given_name"`
+	Id            string `json:"id"`
+	Locale        string `json:"locale"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	VerifiedEmail bool   `json:"verified_email"`
+}
 
 func GoogleRouter(app *fiber.App) {
 	oauthConf := &oauth2.Config{
@@ -41,18 +54,19 @@ func GoogleRouter(app *fiber.App) {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to exchange token: " + err.Error())
 		}
 
-		//set client for getting user info like email, name, etc.
+		//set client for getting googleUser info like email, name, etc.
 		client := oauthConf.Client(context.Background(), token)
-		//get user info
+
+		//get googleUser info
 		response, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).SendString("Failed to get user info: " + err.Error())
+			return c.Status(fiber.StatusInternalServerError).SendString("Failed to get googleUser info: " + err.Error())
 		}
 
 		defer response.Body.Close()
 
-		//user variable
-		var user models.GoogleUser
+		// googleUser variable
+		var googleUser GoogleUser
 
 		//reading response body from client
 		bytes, err := io.ReadAll(response.Body)
@@ -60,14 +74,45 @@ func GoogleRouter(app *fiber.App) {
 			return c.Status(fiber.StatusInternalServerError).SendString("Error reading response body: " + err.Error())
 		}
 
-		//unmarshal user info
-		err = json.Unmarshal(bytes, &user)
+		// unmarshal googleUser info
+		err = json.Unmarshal(bytes, &googleUser)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Error unmarshal json body " + err.Error())
 		}
 
-		// TODO: Save user in DB
+		myUser := models.User{
+			Picture:    googleUser.Picture,
+			FirstName:  googleUser.FamilyName,
+			LastName:   googleUser.GivenName,
+			Email:      googleUser.Email,
+			IsVerified: true,
+		}
 
-		return c.Status(fiber.StatusOK).JSON(user) //return user info
+		// Return Tokens if the googleUser exists
+		if err := config.DB.Where("email = ?", googleUser.Email).First(&myUser).Error; err == nil {
+			tokens := auth.Tokens{
+				AccessToken:  auth.GenerateAccessToken(myUser),
+				RefreshToken: auth.GenerateRefreshToken(myUser),
+			}
+
+			return c.Status(fiber.StatusOK).JSON(tokens)
+		}
+
+		// Save googleUser in DB
+		creation := config.DB.Create(&myUser)
+		if creation.Error != nil {
+			c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"message": "failed to create googleUser",
+			})
+		}
+
+		// Generate Access and Refresh Tokens
+		tokens := auth.Tokens{
+			AccessToken:  auth.GenerateAccessToken(myUser),
+			RefreshToken: auth.GenerateRefreshToken(myUser),
+		}
+
+		//return googleUser info
+		return c.Status(fiber.StatusCreated).JSON(tokens)
 	})
 }
