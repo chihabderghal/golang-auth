@@ -52,6 +52,7 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check user if exists
 	var existingUser models.User
 	if err := config.DB.Where("email = ?", userBody.Email).First(&existingUser).Error; err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
