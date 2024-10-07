@@ -20,7 +20,7 @@ func main() {
 
 	// Setup routes
 	routes.GlobalRouter(app)
-	routes.GlobalRouter(app)
+	routes.GoogleRouter(app)
 
 	log.Fatal(app.Listen(":" + port))
 }
