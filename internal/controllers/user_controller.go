@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"github.com/chihabderghal/user-service/internal/auth"
 	"github.com/chihabderghal/user-service/internal/config"
 	"github.com/chihabderghal/user-service/pkg/models"
@@ -9,16 +10,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"os"
 	"time"
 )
 
 type UserRegister struct {
-	Firstname  string `json:"firstName" validate:"required"`
-	Lastname   string `json:"lastName" validate:"required"`
-	Country    string `json:"country" validate:"required"`
-	Email      string `json:"email" validate:"required,email"`
-	Password   string `json:"password" validate:"required,min=8"`
-	IsVerified bool   `json:"isVerified"`
+	Firstname string `json:"firstName" validate:"required"`
+	Lastname  string `json:"lastName" validate:"required"`
+	Email     string `json:"email" validate:"required,email"`
+	Password  string `json:"password" validate:"required,min=8"`
+	Picture   string `json:"picture"`
 }
 
 type UserLogin struct {
@@ -52,11 +53,35 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check user if exists
+	// Check the user if already exists
 	var existingUser models.User
 	if err := config.DB.Where("email = ?", userBody.Email).First(&existingUser).Error; err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"message": "user already exists",
+		})
+	}
+
+	if _, err := os.Stat("./uploads"); os.IsNotExist(err) {
+		err := os.Mkdir("./uploads", os.ModePerm)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"message": "Internal Server Error",
+			})
+		}
+	}
+
+	file, err := c.FormFile("image")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "failed to upload image",
+		})
+	}
+
+	imagePath := fmt.Sprintf("./uploads/%s-%s", time.Now().Format("20060102"), file.Filename)
+
+	if err := c.SaveFile(file, imagePath); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to save image",
 		})
 	}
 
@@ -74,6 +99,7 @@ func Register(c *fiber.Ctx) error {
 		LastName:  userBody.Lastname,
 		Email:     userBody.Email,
 		Password:  string(hash),
+		Picture:   imagePath,
 	}
 
 	creation := config.DB.Create(&user)
