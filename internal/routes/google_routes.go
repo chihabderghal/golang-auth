@@ -11,6 +11,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"io"
 	"os"
+	"time"
 )
 
 type GoogleUser struct {
@@ -112,7 +113,26 @@ func GoogleRouter(app *fiber.App) {
 			RefreshToken: auth.GenerateRefreshToken(myUser),
 		}
 
-		//return googleUser info
-		return c.Status(fiber.StatusCreated).JSON(tokens)
+		// Set Access Token in the Cookie
+		c.Cookie(&fiber.Cookie{
+			Name:     "accessToken",
+			Value:    tokens.AccessToken,
+			Expires:  time.Now().Add(time.Minute * 15),
+			HTTPOnly: true,
+			Secure:   false,
+		})
+
+		// Set Refresh Token in the Cookie
+		c.Cookie(&fiber.Cookie{
+			Name:     "refreshToken",
+			Value:    tokens.RefreshToken,
+			Expires:  time.Now().Add(time.Hour * 24 * 7 * 4),
+			HTTPOnly: true,
+			Secure:   false,
+		})
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"message": "Login Successfully",
+		})
 	})
 }
