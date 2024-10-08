@@ -8,6 +8,8 @@ import (
 	"github.com/chihabderghal/user-service/pkg/models"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/resend/resend-go/v2"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"os"
@@ -93,19 +95,45 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Email verification token
+	verificationToken := uuid.New().String()
+
 	// save user in db
 	user := models.User{
-		FirstName: userBody.Firstname,
-		LastName:  userBody.Lastname,
-		Email:     userBody.Email,
-		Password:  string(hash),
-		Picture:   imagePath,
+		FirstName:         userBody.Firstname,
+		LastName:          userBody.Lastname,
+		Email:             userBody.Email,
+		Password:          string(hash),
+		Picture:           imagePath,
+		IsVerified:        false,
+		VerificationToken: verificationToken,
 	}
 
 	creation := config.DB.Create(&user)
 	if creation.Error != nil {
 		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "failed to create user",
+		})
+	}
+
+	// TODO: Email verification
+	apikey := os.Getenv("RESEND_API_KEY")
+
+	client := resend.NewClient(apikey)
+	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken)
+	body := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
+
+	params := &resend.SendEmailRequest{
+		From:    "Chihab Derghal <golang@resend.dev>",
+		To:      []string{userBody.Email},
+		Html:    body,
+		Subject: "Email verification",
+	}
+
+	_, err = client.Emails.Send(params)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to send verification email",
 		})
 	}
 
@@ -134,6 +162,41 @@ func Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Register successful",
+	})
+}
+
+func VerifyEmail(c *fiber.Ctx) error {
+	// Get token from query params
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid token",
+		})
+	}
+
+	// Find user by token
+	var user models.User
+	if err := config.DB.Where("verification_token = ?", token).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid or expired token",
+		})
+	}
+
+	// Verify the user
+	user.IsVerified = true
+	// Clear the token
+	user.VerificationToken = ""
+
+	config.DB.Save(&user)
+
+	if err := config.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to verify email",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Email verified successfully",
 	})
 }
 
@@ -200,8 +263,4 @@ func Login(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Login successful",
 	})
-}
-
-func Refresh(c *fiber.Ctx) error {
-	return nil
 }

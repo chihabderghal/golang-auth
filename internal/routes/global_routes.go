@@ -15,5 +15,5 @@ func GlobalRouter(c *fiber.App) {
 
 	c.Post("/api/auth/register", controllers.Register)
 	c.Post("/api/auth/login", controllers.Login)
-	c.Post("/api/auth/refresh", controllers.Refresh)
+	c.Get("/api/auth/verify", controllers.VerifyEmail)
 }
