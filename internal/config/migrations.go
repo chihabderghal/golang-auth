@@ -6,4 +6,5 @@ import (
 
 func AutoMigrations() {
 	DB.AutoMigrate(&models.User{})
+	DB.AutoMigrate(&models.VerificationToken{})
 }
