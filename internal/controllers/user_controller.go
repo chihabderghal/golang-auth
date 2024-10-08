@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/chihabderghal/user-service/internal/auth"
 	"github.com/chihabderghal/user-service/internal/config"
-	"github.com/chihabderghal/user-service/pkg/models"
+	models "github.com/chihabderghal/user-service/pkg/models"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -95,32 +95,40 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Email verification token
-	verificationToken := uuid.New().String()
-
-	// save user in db
+	// Create a User
 	user := models.User{
-		FirstName:         userBody.Firstname,
-		LastName:          userBody.Lastname,
-		Email:             userBody.Email,
-		Password:          string(hash),
-		Picture:           imagePath,
-		IsVerified:        false,
-		VerificationToken: verificationToken,
+		FirstName:  userBody.Firstname,
+		LastName:   userBody.Lastname,
+		Email:      userBody.Email,
+		Password:   string(hash),
+		Picture:    imagePath,
+		IsVerified: false,
 	}
 
-	creation := config.DB.Create(&user)
-	if creation.Error != nil {
-		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// Save user in db
+	if err := config.DB.Create(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "failed to create user",
 		})
 	}
 
-	// TODO: Email verification
+	// Create a verification token for the user
+	verificationToken := models.VerificationToken{
+		Token:     uuid.New(),
+		ExpiredAt: time.Now().Add(time.Minute * 15), // 15 minutes
+		UserId:    user.ID,
+	}
+
+	if err := config.DB.Create(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to create verification token",
+		})
+	}
+
 	apikey := os.Getenv("RESEND_API_KEY")
 
 	client := resend.NewClient(apikey)
-	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken)
+	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken.Token)
 	body := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
 
 	params := &resend.SendEmailRequest{
@@ -162,41 +170,69 @@ func Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Register successful",
+		"tokens":  tokens,
 	})
 }
 
+// VerifyEmail handles email verification requests using a token.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid or expired verification token.
+// - 401 Unauthorized: Verification token has expired or user not found.
+// - 200 OK: Email successfully verified with a success message in JSON format.
 func VerifyEmail(c *fiber.Ctx) error {
-	// Get token from query params
+	// Get the token from the query parameters
 	token := c.Query("token")
-	if token == "" {
+
+	// Find the token record by the verification token
+	var verificationToken models.VerificationToken
+	if err := config.DB.Where("token = ?", token).First(&verificationToken).Error; err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid token",
+			"message": "Invalid or expired verification token",
 		})
 	}
 
-	// Find user by token
+	// Check if the token has expired
+	if time.Now().After(verificationToken.ExpiredAt) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Verification token has expired",
+		})
+	}
+
+	// Find the associated user
 	var user models.User
-	if err := config.DB.Where("verification_token = ?", token).First(&user).Error; err != nil {
+	if err := config.DB.Where("id = ?", verificationToken.UserId).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "invalid or expired token",
+			"message": "User not found",
 		})
 	}
 
-	// Verify the user
+	// Check if the user is already verified
+	if user.IsVerified {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "User is already verified",
+		})
+	}
+
+	// Update the user's verification status
 	user.IsVerified = true
-	// Clear the token
-	user.VerificationToken = ""
-
-	config.DB.Save(&user)
-
 	if err := config.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "failed to verify email",
+			"message": "Failed to verify user",
+		})
+	}
+
+	// Delete or deactivate the verification token after use
+	if err := config.DB.Delete(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to clean up verification token",
 		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Email verified successfully",
+		"message": "Email successfully verified",
 	})
 }
 
