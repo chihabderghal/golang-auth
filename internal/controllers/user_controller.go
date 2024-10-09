@@ -8,6 +8,7 @@ import (
 	models "github.com/chihabderghal/user-service/pkg/models"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/resend/resend-go/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -112,39 +113,6 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create a verification token for the user
-	verificationToken := models.VerificationToken{
-		Token:     uuid.New(),
-		ExpiredAt: time.Now().Add(time.Minute * 15), // 15 minutes
-		UserId:    user.ID,
-	}
-
-	if err := config.DB.Create(&verificationToken).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "failed to create verification token",
-		})
-	}
-
-	apikey := os.Getenv("RESEND_API_KEY")
-
-	client := resend.NewClient(apikey)
-	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken.Token)
-	body := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
-
-	params := &resend.SendEmailRequest{
-		From:    "Chihab Derghal <golang@resend.dev>",
-		To:      []string{userBody.Email},
-		Html:    body,
-		Subject: "Email verification",
-	}
-
-	_, err = client.Emails.Send(params)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "failed to send verification email",
-		})
-	}
-
 	tokens := auth.Tokens{
 		AccessToken:  auth.GenerateAccessToken(user),
 		RefreshToken: auth.GenerateRefreshToken(user),
@@ -152,7 +120,7 @@ func Register(c *fiber.Ctx) error {
 
 	// Set Access Token in the Cookie
 	c.Cookie(&fiber.Cookie{
-		Name:     "access_token",
+		Name:     "accessToken",
 		Value:    tokens.AccessToken,
 		Expires:  time.Now().Add(time.Minute * 15),
 		HTTPOnly: true,
@@ -161,7 +129,7 @@ func Register(c *fiber.Ctx) error {
 
 	// Set Refresh Token in the Cookie
 	c.Cookie(&fiber.Cookie{
-		Name:     "refresh_token",
+		Name:     "refreshToken",
 		Value:    tokens.RefreshToken,
 		Expires:  time.Now().Add(time.Hour * 24 * 7 * 4),
 		HTTPOnly: true,
@@ -298,5 +266,99 @@ func Login(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Login successful",
+	})
+}
+
+func SendEmailVerification(c *fiber.Ctx) error {
+	// Retrieve the access token from cookies
+	cookie := c.Cookies("refreshToken")
+	if cookie == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Missing access token",
+		})
+	}
+
+	// Parse the access token
+	token, err := jwt.Parse(cookie, func(t *jwt.Token) (interface{}, error) {
+		// Ensure the token method matches expected signing algorithm
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		// Return the secret key to validate the token signature
+		return []byte(os.Getenv("RT_SECRET")), nil
+	})
+
+	if err != nil || !token.Valid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid or expired access token",
+		})
+	}
+
+	// Extract claims from the token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Failed to parse token claims",
+		})
+	}
+
+	// Retrieve user ID from the token claims
+	userId, ok := claims["sub"]
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"id":      userId,
+			"message": "Invalid user ID in token",
+		})
+	}
+
+	// Find the associated user in the database
+	var user models.User
+	if err := config.DB.Where("id = ?", userId).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "User not found",
+		})
+	}
+
+	// Create a verification token for the user
+	verificationToken := models.VerificationToken{
+		Token:     uuid.New(),
+		ExpiredAt: time.Now().Add(time.Minute * 15), // 15 minutes
+		UserId:    user.ID,
+	}
+
+	// Save VerificationToken on DB
+	if err := config.DB.Create(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to create verification token",
+		})
+	}
+
+	// Retrieve the Resend API key,
+	apikey := os.Getenv("RESEND_API_KEY")
+
+	// create a Resend client,
+	client := resend.NewClient(apikey)
+	// generate the email verification link,
+	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken.Token)
+	body := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
+
+	// prepare the email parameters,
+	params := &resend.SendEmailRequest{
+		From:    "Chihab Derghal <golang@resend.dev>",
+		To:      []string{user.Email},
+		Html:    body,
+		Subject: "Email verification",
+	}
+
+	// send the email to the user for verification.
+	_, err = client.Emails.Send(params)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to send verification email",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Please check your inbox to verify your email address.",
 	})
 }
