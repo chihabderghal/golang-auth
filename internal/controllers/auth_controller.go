@@ -17,19 +17,6 @@ import (
 	"time"
 )
 
-type UserRegister struct {
-	Firstname string `json:"firstName" validate:"required"`
-	Lastname  string `json:"lastName" validate:"required"`
-	Email     string `json:"email" validate:"required,email"`
-	Password  string `json:"password" validate:"required,min=8"`
-	Picture   string `json:"picture"`
-}
-
-type UserLogin struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-}
-
 var validate = validator.New()
 
 // Register handles user registration requests.
@@ -42,7 +29,14 @@ var validate = validator.New()
 // - 201 Created: Registration successful with a success message in JSON format.
 func Register(c *fiber.Ctx) error {
 	// Get user info from body
-	var userBody UserRegister
+	var userBody struct {
+		Firstname string `json:"firstName" validate:"required"`
+		Lastname  string `json:"lastName" validate:"required"`
+		Email     string `json:"email" validate:"required,email"`
+		Password  string `json:"password" validate:"required,min=8"`
+		Picture   string `json:"picture"`
+	}
+
 	if err := c.BodyParser(&userBody); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "invalid request body",
@@ -152,7 +146,11 @@ func Register(c *fiber.Ctx) error {
 // - 200 OK: Login successful with a success message in JSON format.
 func Login(c *fiber.Ctx) error {
 	// Get credentials
-	var userBody UserLogin
+	var userBody struct {
+		Email    string `json:"email" validate:"required,email"`
+		Password string `json:"password" validate:"required,min=8"`
+	}
+
 	if err := c.BodyParser(&userBody); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "invalid request body",
