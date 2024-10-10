@@ -17,4 +17,6 @@ func GlobalRouter(c *fiber.App) {
 	c.Post("/api/auth/login", controllers.Login)
 	c.Get("/api/auth/request-email-verification", controllers.SendEmailVerification)
 	c.Get("/api/auth/verify", controllers.VerifyEmail)
+	c.Post("/api/auth/forget-password", controllers.ForgotPassword)
+	c.Post("/api/auth/reset-password", controllers.ResetPassword)
 }
