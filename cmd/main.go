@@ -19,7 +19,7 @@ func main() {
 	port := os.Getenv("PORT")
 
 	// Setup routes
-	routes.GlobalRouter(app)
+	routes.AuthRouter(app)
 	routes.GoogleRouter(app)
 
 	log.Fatal(app.Listen(":" + port))
