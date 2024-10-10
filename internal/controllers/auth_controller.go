@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/chihabderghal/user-service/internal/auth"
 	"github.com/chihabderghal/user-service/internal/config"
-	models "github.com/chihabderghal/user-service/pkg/models"
+	"github.com/chihabderghal/user-service/pkg/models"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -142,68 +142,6 @@ func Register(c *fiber.Ctx) error {
 	})
 }
 
-// VerifyEmail handles email verification requests using a token.
-//
-// @param c *fiber.Ctx: The Fiber context containing the request and response details.
-//
-// @returns error:
-// - 400 Bad Request: Invalid or expired verification token.
-// - 401 Unauthorized: Verification token has expired or user not found.
-// - 200 OK: Email successfully verified with a success message in JSON format.
-func VerifyEmail(c *fiber.Ctx) error {
-	// Get the token from the query parameters
-	token := c.Query("token")
-
-	// Find the token record by the verification token
-	var verificationToken models.VerificationToken
-	if err := config.DB.Where("token = ?", token).First(&verificationToken).Error; err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid or expired verification token",
-		})
-	}
-
-	// Check if the token has expired
-	if time.Now().After(verificationToken.ExpiredAt) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Verification token has expired",
-		})
-	}
-
-	// Find the associated user
-	var user models.User
-	if err := config.DB.Where("id = ?", verificationToken.UserId).First(&user).Error; err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "User not found",
-		})
-	}
-
-	// Check if the user is already verified
-	if user.IsVerified {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "User is already verified",
-		})
-	}
-
-	// Update the user's verification status
-	user.IsVerified = true
-	if err := config.DB.Save(&user).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to verify user",
-		})
-	}
-
-	// Delete or deactivate the verification token after use
-	if err := config.DB.Delete(&verificationToken).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to clean up verification token",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Email successfully verified",
-	})
-}
-
 // Login handles user login requests.
 //
 // @param c *fiber.Ctx: The Fiber context containing the request and response details.
@@ -269,6 +207,78 @@ func Login(c *fiber.Ctx) error {
 	})
 }
 
+// VerifyEmail handles email verification requests using a token.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid or expired verification token.
+// - 401 Unauthorized: Verification token has expired or user not found.
+// - 200 OK: Email successfully verified with a success message in JSON format.
+func VerifyEmail(c *fiber.Ctx) error {
+	// Get the token from the query parameters
+	token := c.Query("token")
+
+	// Find the token record by the verification token
+	var verificationToken models.VerificationToken
+	if err := config.DB.Where("token = ?", token).First(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid or expired verification token",
+		})
+	}
+
+	// Check if the token has expired
+	if time.Now().After(verificationToken.ExpiredAt) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Verification token has expired",
+		})
+	}
+
+	// Find the associated user
+	var user models.User
+	if err := config.DB.Where("id = ?", verificationToken.UserId).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "User not found",
+		})
+	}
+
+	// Check if the user is already verified
+	if user.IsVerified {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "User is already verified",
+		})
+	}
+
+	// Update the user's verification status
+	user.IsVerified = true
+	if err := config.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to verify user",
+		})
+	}
+
+	// Delete or deactivate the verification token after use
+	if err := config.DB.Delete(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to clean up verification token",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Email successfully verified",
+	})
+}
+
+// SendEmailVerification sends an email verification link to the user.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Token claims could not be parsed, or user ID is invalid.
+// - 401 Unauthorized: Missing or invalid access token.
+// - 404 Not Found: The user associated with the token is not found in the database.
+// - 500 Internal Server Error: Failed to create the verification token or send the verification email.
+// - 200 OK: Email sent successfully with a verification link.
 func SendEmailVerification(c *fiber.Ctx) error {
 	// Retrieve the access token from cookies
 	cookie := c.Cookies("refreshToken")
@@ -360,5 +370,168 @@ func SendEmailVerification(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Please check your inbox to verify your email address.",
+	})
+}
+
+// ForgotPassword handles the request to send a password reset link to the user's email.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid email format or email not found in the database.
+// - 500 Internal Server Error: Failed to create the verification token or send the password reset email.
+// - 200 OK: Email sent successfully with a password reset link.
+func ForgotPassword(c *fiber.Ctx) error {
+	// Parse the user's email from the request body
+	var userBody struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	if err := c.BodyParser(&userBody); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid request body",
+		})
+	}
+
+	// Validate the email field to ensure it's properly formatted
+	if err := validate.Struct(&userBody); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid email format",
+		})
+	}
+
+	// Check if a user with the given email exists in the database
+	var user models.User
+	if err := config.DB.Where("email = ?", userBody.Email).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Email not found",
+		})
+	}
+
+	// Create a new password reset token for the user
+	verificationToken := models.VerificationToken{
+		Token:     uuid.New(),
+		ExpiredAt: time.Now().Add(time.Minute * 15), // Token is valid for 15 minutes
+		UserId:    user.ID,
+	}
+
+	// Store the generated verification token in the database
+	if err := config.DB.Create(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to create verification token",
+		})
+	}
+
+	// Initialize the Resend API client for sending the reset email
+	apikey := os.Getenv("RESEND_API_KEY")
+	client := resend.NewClient(apikey)
+
+	// Generate the password reset link using the verification token
+	resetLink := fmt.Sprintf("http://localhost:5000/api/auth/reset-password?token=%s", verificationToken.Token)
+
+	// Create the email body for the password reset request
+	body := fmt.Sprintf("<p>You requested to reset your password. Please click the following link to reset it: <a href=\"%s\">Reset Password</a></p>", resetLink)
+
+	// Set up the email parameters
+	params := &resend.SendEmailRequest{
+		From:    "Chihab Derghal <golang@resend.dev>",
+		To:      []string{userBody.Email},
+		Html:    body,
+		Subject: "Password Reset Request",
+	}
+
+	// Send the password reset email to the user
+	_, err := client.Emails.Send(params)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to send password reset email",
+		})
+	}
+
+	// Return a success message indicating that the password reset email was sent
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Check your inbox for the password reset link.",
+	})
+}
+
+// ResetPassword handles the request to reset a user's password using a verification token.
+//
+// @param c *fiber.Ctx: The Fiber context containing the request and response details.
+//
+// @returns error:
+// - 400 Bad Request: Invalid or expired verification token, or invalid request body.
+// - 500 Internal Server Error: Failed to hash the new password or reset the password in the database.
+// - 200 OK: Password reset successfully.
+func ResetPassword(c *fiber.Ctx) error {
+	// Retrieve the verification token from the query parameters
+	token := c.Query("token")
+
+	// Look up the verification token in the database
+	var verificationToken models.VerificationToken
+	if err := config.DB.Where("token = ?", token).First(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid or expired verification token",
+		})
+	}
+
+	// Check if the verification token has expired
+	if time.Now().After(verificationToken.ExpiredAt) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Verification token has expired",
+		})
+	}
+
+	// Retrieve the user associated with the token from the database
+	var user models.User
+	if err := config.DB.Where("id = ?", verificationToken.UserId).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "User not found",
+		})
+	}
+
+	// Parse the new password from the request body
+	var userBody struct {
+		Password string `json:"password" validate:"required,min=8"`
+	}
+
+	if err := c.BodyParser(&userBody); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid request body",
+		})
+	}
+
+	// Validate the password input
+	if err := validate.Struct(&userBody); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid password",
+		})
+	}
+
+	// hash the password
+	hash, err := bcrypt.GenerateFromPassword([]byte(userBody.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "failed to hash password",
+		})
+	}
+
+	// Update the user's password in the database
+	user.Password = string(hash)
+
+	if err := config.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to reset password",
+		})
+	}
+
+	// Remove the verification token after it has been used
+	if err := config.DB.Delete(&verificationToken).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to remove verification token",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Password successfully reset",
 	})
 }
