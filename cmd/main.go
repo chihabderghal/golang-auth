@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/chihabderghal/user-service/internal/config"
+	config "github.com/chihabderghal/user-service/config"
 	"github.com/chihabderghal/user-service/internal/routes"
+	"github.com/chihabderghal/user-service/scripts"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 func init() {
 	config.LoadEnv()
 	config.DBConnector()
-	config.AutoMigrations()
+	scripts.AutoMigrations()
 }
 
 func main() {
