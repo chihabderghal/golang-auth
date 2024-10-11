@@ -3,9 +3,10 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"github.com/chihabderghal/user-service/config"
 	"github.com/chihabderghal/user-service/internal/auth"
-	"github.com/chihabderghal/user-service/internal/config"
 	"github.com/chihabderghal/user-service/pkg/models"
+	"github.com/chihabderghal/user-service/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -92,8 +93,8 @@ func GoogleRouter(app *fiber.App) {
 		// Return Tokens if the googleUser exists
 		if err := config.DB.Where("email = ?", googleUser.Email).First(&myUser).Error; err == nil {
 			tokens := auth.Tokens{
-				AccessToken:  auth.GenerateAccessToken(myUser),
-				RefreshToken: auth.GenerateRefreshToken(myUser),
+				AccessToken:  utils.GenerateAccessToken(myUser),
+				RefreshToken: utils.GenerateRefreshToken(myUser),
 			}
 
 			return c.Status(fiber.StatusOK).JSON(tokens)
@@ -109,8 +110,8 @@ func GoogleRouter(app *fiber.App) {
 
 		// Generate Access and Refresh Tokens
 		tokens := auth.Tokens{
-			AccessToken:  auth.GenerateAccessToken(myUser),
-			RefreshToken: auth.GenerateRefreshToken(myUser),
+			AccessToken:  utils.GenerateAccessToken(myUser),
+			RefreshToken: utils.GenerateRefreshToken(myUser),
 		}
 
 		// Set Access Token in the Cookie
