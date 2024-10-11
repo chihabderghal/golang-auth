@@ -3,15 +3,13 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"github.com/chihabderghal/user-service/config"
 	"github.com/chihabderghal/user-service/internal/auth"
-	"github.com/chihabderghal/user-service/internal/config"
 	"github.com/chihabderghal/user-service/pkg/models"
+	"github.com/chihabderghal/user-service/pkg/utils"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/resend/resend-go/v2"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"os"
 	"time"
@@ -83,7 +81,7 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	// hash the password
-	hash, err := bcrypt.GenerateFromPassword([]byte(userBody.Password), bcrypt.DefaultCost)
+	hash, err := utils.HashString(userBody.Password)
 	if err != nil {
 		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "failed to hash password",
@@ -95,7 +93,7 @@ func Register(c *fiber.Ctx) error {
 		FirstName:  userBody.Firstname,
 		LastName:   userBody.Lastname,
 		Email:      userBody.Email,
-		Password:   string(hash),
+		Password:   hash,
 		Picture:    imagePath,
 		IsVerified: false,
 	}
@@ -108,8 +106,8 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	tokens := auth.Tokens{
-		AccessToken:  auth.GenerateAccessToken(user),
-		RefreshToken: auth.GenerateRefreshToken(user),
+		AccessToken:  utils.GenerateAccessToken(user),
+		RefreshToken: utils.GenerateRefreshToken(user),
 	}
 
 	// Set Access Token in the Cookie
@@ -132,7 +130,6 @@ func Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Register successful",
-		"tokens":  tokens,
 	})
 }
 
@@ -178,8 +175,8 @@ func Login(c *fiber.Ctx) error {
 
 	// Create tokens
 	tokens := auth.Tokens{
-		AccessToken:  auth.GenerateAccessToken(user),
-		RefreshToken: auth.GenerateRefreshToken(user),
+		AccessToken:  utils.GenerateAccessToken(user),
+		RefreshToken: utils.GenerateRefreshToken(user),
 	}
 
 	// Set Access Token in the Cookie
@@ -256,7 +253,7 @@ func VerifyEmail(c *fiber.Ctx) error {
 	}
 
 	// Delete or deactivate the verification token after use
-	if err := config.DB.Delete(&verificationToken).Error; err != nil {
+	if err := config.DB.Unscoped().Delete(&verificationToken).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to clean up verification token",
 		})
@@ -279,34 +276,18 @@ func VerifyEmail(c *fiber.Ctx) error {
 // - 200 OK: Email sent successfully with a verification link.
 func SendEmailVerification(c *fiber.Ctx) error {
 	// Retrieve the access token from cookies
-	cookie := c.Cookies("refreshToken")
+	cookie := c.Cookies("accessToken")
 	if cookie == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"message": "Missing access token",
 		})
 	}
 
-	// Parse the access token
-	token, err := jwt.Parse(cookie, func(t *jwt.Token) (interface{}, error) {
-		// Ensure the token method matches expected signing algorithm
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		// Return the secret key to validate the token signature
-		return []byte(os.Getenv("RT_SECRET")), nil
-	})
-
-	if err != nil || !token.Valid {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "Invalid or expired access token",
-		})
-	}
-
-	// Extract claims from the token
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Failed to parse token claims",
+	// Parse the JWT token from the cookie using the provided secret
+	claims, err := utils.ParseJwt(cookie, os.Getenv("AT_SECRET"))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to parse JWT token",
 		})
 	}
 
@@ -314,7 +295,6 @@ func SendEmailVerification(c *fiber.Ctx) error {
 	userId, ok := claims["sub"]
 	if !ok {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"id":      userId,
 			"message": "Invalid user ID in token",
 		})
 	}
@@ -341,28 +321,19 @@ func SendEmailVerification(c *fiber.Ctx) error {
 		})
 	}
 
-	// Retrieve the Resend API key,
-	apikey := os.Getenv("RESEND_API_KEY")
-
-	// create a Resend client,
-	client := resend.NewClient(apikey)
-	// generate the email verification link,
+	// Generate the email verification link and the corresponding email body content.
+	// The link directs the user to verify their email using the provided token.
 	verificationLink := fmt.Sprintf("http://localhost:5000/api/auth/verify?token=%s", verificationToken.Token)
-	body := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
+	emailBody := fmt.Sprintf("<p>Please verify your email by clicking the following link: <a href=\"%s\">Verify Email</a></p>", verificationLink)
 
-	// prepare the email parameters,
-	params := &resend.SendEmailRequest{
-		From:    "Chihab Derghal <golang@resend.dev>",
-		To:      []string{user.Email},
-		Html:    body,
-		Subject: "Email verification",
-	}
+	// Define the subject line for the email.
+	subject := "Email Verification"
 
-	// send the email to the user for verification.
-	_, err = client.Emails.Send(params)
+	// After generating the verification token
+	err = utils.SendVerificationEmail(user.Email, emailBody, subject)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "failed to send verification email",
+			"message": err.Error(),
 		})
 	}
 
@@ -420,29 +391,19 @@ func ForgotPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	// Initialize the Resend API client for sending the reset email
-	apikey := os.Getenv("RESEND_API_KEY")
-	client := resend.NewClient(apikey)
-
 	// Generate the password reset link using the verification token
-	resetLink := fmt.Sprintf("http://localhost:5000/api/auth/reset-password?token=%s", verificationToken.Token)
-
 	// Create the email body for the password reset request
-	body := fmt.Sprintf("<p>You requested to reset your password. Please click the following link to reset it: <a href=\"%s\">Reset Password</a></p>", resetLink)
+	resetLink := fmt.Sprintf("http://localhost:5000/api/auth/reset-password?token=%s", verificationToken.Token)
+	emailBody := fmt.Sprintf("<p>You requested to reset your password. Please click the following link to reset it: <a href=\"%s\">Reset Password</a></p>", resetLink)
 
-	// Set up the email parameters
-	params := &resend.SendEmailRequest{
-		From:    "Chihab Derghal <golang@resend.dev>",
-		To:      []string{userBody.Email},
-		Html:    body,
-		Subject: "Password Reset Request",
-	}
+	// Define the subject line for the email.
+	subject := "Password Reset Request"
 
-	// Send the password reset email to the user
-	_, err := client.Emails.Send(params)
+	// After generating the verification token
+	err := utils.SendVerificationEmail(user.Email, emailBody, subject)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to send password reset email",
+			"message": err.Error(),
 		})
 	}
 
@@ -506,7 +467,7 @@ func ResetPassword(c *fiber.Ctx) error {
 	}
 
 	// hash the password
-	hash, err := bcrypt.GenerateFromPassword([]byte(userBody.Password), bcrypt.DefaultCost)
+	hash, err := utils.HashString(userBody.Password)
 	if err != nil {
 		c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "failed to hash password",
@@ -514,7 +475,7 @@ func ResetPassword(c *fiber.Ctx) error {
 	}
 
 	// Update the user's password in the database
-	user.Password = string(hash)
+	user.Password = hash
 
 	if err := config.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -523,7 +484,7 @@ func ResetPassword(c *fiber.Ctx) error {
 	}
 
 	// Remove the verification token after it has been used
-	if err := config.DB.Delete(&verificationToken).Error; err != nil {
+	if err := config.DB.Unscoped().Delete(&verificationToken).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to remove verification token",
 		})
