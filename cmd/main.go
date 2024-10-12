@@ -15,13 +15,19 @@ func init() {
 	scripts.AutoMigrations()
 }
 
-func main() {
+func Setup() *fiber.App {
 	app := fiber.New()
-	port := os.Getenv("PORT")
 
 	// Setup routes
 	routes.AuthRouter(app)
 	routes.GoogleRouter(app)
+
+	return app
+}
+
+func main() {
+	app := Setup()
+	port := os.Getenv("PORT")
 
 	log.Fatal(app.Listen(":" + port))
 }
