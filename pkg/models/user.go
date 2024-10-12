@@ -6,7 +6,7 @@ import (
 
 type User struct {
 	gorm.Model
-	Picture           string            `gorm:"size:255"`
+	Picture           string            `gorm:"size:255;default:nil"`
 	FirstName         string            `gorm:"size:255"`
 	LastName          string            `gorm:"size:255"`
 	Email             string            `gorm:"type:varchar(100);unique"`
