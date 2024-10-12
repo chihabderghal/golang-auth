@@ -6,6 +6,15 @@ import (
 	"os"
 )
 
+// SendVerificationEmail sends a verification email to the specified user.
+//
+// Parameters:
+//   - userEmail: The recipient's email address.
+//   - subject: The email's subject line.
+//   - emailBody: The HTML content of the email.
+//
+// Returns:
+//   - error: Returns nil if the email is sent successfully, or an error if it fails.
 func SendVerificationEmail(userEmail string, subject string, emailBody string) error {
 	// Retrieve the Resend API key.
 	apikey := os.Getenv("RESEND_API_KEY")
