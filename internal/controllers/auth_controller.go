@@ -32,7 +32,6 @@ func Register(c *fiber.Ctx) error {
 		Lastname  string `json:"lastName" validate:"required"`
 		Email     string `json:"email" validate:"required,email"`
 		Password  string `json:"password" validate:"required,min=8"`
-		Picture   string `json:"picture"`
 	}
 
 	if err := c.BodyParser(&userBody); err != nil {
@@ -56,30 +55,6 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if _, err := os.Stat("./uploads"); os.IsNotExist(err) {
-		err := os.Mkdir("./uploads", os.ModePerm)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"message": "Internal Server Error",
-			})
-		}
-	}
-
-	file, err := c.FormFile("image")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "failed to upload image",
-		})
-	}
-
-	imagePath := fmt.Sprintf("./uploads/%s-%s", time.Now().Format("20060102"), file.Filename)
-
-	if err := c.SaveFile(file, imagePath); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "failed to save image",
-		})
-	}
-
 	// hash the password
 	hash, err := utils.HashString(userBody.Password)
 	if err != nil {
@@ -94,7 +69,6 @@ func Register(c *fiber.Ctx) error {
 		LastName:   userBody.Lastname,
 		Email:      userBody.Email,
 		Password:   hash,
-		Picture:    imagePath,
 		IsVerified: false,
 	}
 
@@ -171,6 +145,13 @@ func Login(c *fiber.Ctx) error {
 			})
 		}
 		return nil
+	}
+
+	// Compare the given password with the hash
+	if !utils.CheckPasswordHash(userBody.Password, user.Password) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "authentication failed: invalid email or password",
+		})
 	}
 
 	// Create tokens
