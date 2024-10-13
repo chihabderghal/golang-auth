@@ -12,5 +12,6 @@ type User struct {
 	Email             string            `gorm:"type:varchar(100);unique"`
 	IsVerified        bool              `gorm:"default:false"`
 	Password          string            `gorm:"size:255;default:nil"`
+	IsAdmin           bool              `gorm:"default:false"`
 	VerificationToken VerificationToken `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE"`
 }
