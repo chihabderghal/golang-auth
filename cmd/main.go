@@ -21,6 +21,7 @@ func Setup() *fiber.App {
 	// Setup routes
 	routes.AuthRouter(app)
 	routes.GoogleRouter(app)
+	routes.UserRouter(app)
 
 	return app
 }
