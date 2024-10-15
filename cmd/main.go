@@ -1,7 +1,7 @@
 package main
 
 import (
-	config "github.com/chihabderghal/user-service/config"
+	"github.com/chihabderghal/user-service/config"
 	"github.com/chihabderghal/user-service/internal/routes"
 	"github.com/chihabderghal/user-service/scripts"
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +13,22 @@ func init() {
 	config.LoadEnv()
 	config.DBConnector()
 	scripts.AutoMigrations()
+
+	err := scripts.SeedRootUser()
+	if err != nil {
+		return
+	}
+
+	err = scripts.SeedFakeUsers(20)
+	if err != nil {
+		return
+	}
+
+	err = scripts.SeedAdminUsers(5)
+	if err != nil {
+		return
+	}
+
 }
 
 func Setup() *fiber.App {
