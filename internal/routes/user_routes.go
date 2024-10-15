@@ -30,4 +30,9 @@ func UserRouter(app *fiber.App) {
 		middlewares.Protected(),
 		controllers.DeleteUserById,
 	)
+
+	users.Put("/update-user",
+		middlewares.Protected(),
+		controllers.UpdateUser,
+	)
 }
