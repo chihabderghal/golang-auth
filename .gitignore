@@ -1,4 +1,48 @@
-./tmp
-.env
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+
+# Output of the go coverage tool
+*.out
+
+# Go module files
+go.sum
+
+# Dependency directories (vendor/)
+vendor/
+
+# IDE/editor specific
 .idea/
-./uploads/
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Test binaries
+*.test
+
+# Build output
+build/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# GoLand IDE
+/.idea/
+
+# Node dependencies (if applicable in the project)
+node_modules/
+# Env file
+.env
+
+# Directory for user-uploaded images
+./uploads
