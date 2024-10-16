@@ -2,7 +2,7 @@ package utils
 
 import (
 	"fmt"
-	"github.com/chihabderghal/user-service/pkg/models"
+	"github.com/chihabderghal/golang-auth/pkg/models"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"os"

@@ -1,4 +1,4 @@
-module github.com/chihabderghal/user-service
+module github.com/chihabderghal/golang-auth
 
 go 1.23.1
 

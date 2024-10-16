@@ -1,9 +1,9 @@
 package tests_setup
 
 import (
-	"github.com/chihabderghal/user-service/config"
-	"github.com/chihabderghal/user-service/internal/routes"
-	"github.com/chihabderghal/user-service/pkg/models"
+	"github.com/chihabderghal/golang-auth/config"
+	"github.com/chihabderghal/golang-auth/internal/routes"
+	"github.com/chihabderghal/golang-auth/pkg/models"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

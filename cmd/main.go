@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/chihabderghal/user-service/config"
-	"github.com/chihabderghal/user-service/internal/routes"
-	"github.com/chihabderghal/user-service/scripts"
+	"github.com/chihabderghal/golang-auth/config"
+	"github.com/chihabderghal/golang-auth/internal/routes"
+	"github.com/chihabderghal/golang-auth/scripts"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"os"
@@ -45,6 +45,12 @@ func Setup() *fiber.App {
 func main() {
 	app := Setup()
 	port := os.Getenv("PORT")
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Hello World",
+		})
+	})
 
 	log.Fatal(app.Listen(":" + port))
 }

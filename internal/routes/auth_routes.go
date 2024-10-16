@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"github.com/chihabderghal/user-service/internal/controllers"
-	"github.com/chihabderghal/user-service/internal/middlewares"
+	"github.com/chihabderghal/golang-auth/internal/controllers"
+	"github.com/chihabderghal/golang-auth/internal/middlewares"
 	"github.com/gofiber/fiber/v2"
 )
 

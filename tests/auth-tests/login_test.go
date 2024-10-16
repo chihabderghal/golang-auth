@@ -3,9 +3,9 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/chihabderghal/user-service/pkg/models"
-	"github.com/chihabderghal/user-service/pkg/utils"
-	"github.com/chihabderghal/user-service/tests"
+	"github.com/chihabderghal/golang-auth/pkg/models"
+	"github.com/chihabderghal/golang-auth/pkg/utils"
+	tests_setup "github.com/chihabderghal/golang-auth/tests"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"

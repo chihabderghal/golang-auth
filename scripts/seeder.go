@@ -1,9 +1,9 @@
 package scripts
 
 import (
-	"github.com/chihabderghal/user-service/config"
-	"github.com/chihabderghal/user-service/pkg/models"
-	"github.com/chihabderghal/user-service/pkg/utils"
+	"github.com/chihabderghal/golang-auth/config"
+	"github.com/chihabderghal/golang-auth/pkg/models"
+	"github.com/chihabderghal/golang-auth/pkg/utils"
 	"github.com/go-faker/faker/v4"
 )
 
