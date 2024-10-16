@@ -1,0 +1,32 @@
+# Ignore the .git directory
+.git/
+
+# Ignore IDE/editor configurations
+.idea/
+.vscode/
+
+# Ignore Docker-specific files
+.dockerignore
+.gitignore
+
+# Ignore Docker configuration directory
+docker/
+
+# Ignore README files (you might want to keep this depending on your use case)
+README.md
+
+# Ignore environment variable example files
+.env.example
+
+# Ignore node_modules directory if applicable
+node_modules/
+
+# Ignore build artifacts
+build/
+
+# Ignore temporary files
+*.tmp
+*.temp
+
+# Ignore logs
+*.log
