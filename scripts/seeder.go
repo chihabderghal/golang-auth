@@ -10,11 +10,13 @@ import (
 // SeedRootUser seeds a root admin user into the database.
 // This user has verified status and admin privileges.
 func SeedRootUser() error {
+
+	hash, _ := utils.HashString("password123")
 	root := models.User{
 		FirstName:  "Chihab",
 		LastName:   "Derghal",
 		Email:      "chihab@gmail.com",
-		Password:   "password123",
+		Password:   hash,
 		IsVerified: true,
 		IsAdmin:    true,
 	}
