@@ -114,10 +114,13 @@ Once you have built the application, you can run it using:
 ```bash
 ./main
 ```
+
 ---
 
 ## Testing the App
+
 To run the tests for the application, use the following command:
+
 ```bash
 go test -v ./tests/...
 ```
@@ -169,7 +172,6 @@ Here's a high-level overview of the project structure:
 
 ---
 
-
 ### Endpoints
 
 - **Auth Endpoints**
@@ -188,6 +190,7 @@ Here's a high-level overview of the project structure:
 | Method | Endpoint                     | Description                                |
 |--------|------------------------------|--------------------------------------------|
 | GET    | `/api/users/profile`         | Retrieves the authenticated user's profile |
+| GET    | `/api/users/get-all`         | Retrieves All users                        |
 | PUT    | `/api/users/update-user`     | Updates user profile information           |
 | DELETE | `/api/users/delete-user`     | Deletes the authenticated user's account   |
 | GET    | `/api/users/get-admin-users` | Retrieves a list of all users (admin only) |
@@ -197,5 +200,3 @@ Here's a high-level overview of the project structure:
 | Method | Endpoint                 | Description                                                             |
 |--------|--------------------------|-------------------------------------------------------------------------|
 | GET    | `/api/auth/google/login` | Retrieves the profile information of the user authenticated via Google. |
-
----
