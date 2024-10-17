@@ -174,7 +174,7 @@ Here's a high-level overview of the project structure:
 
 ### Endpoints
 
-- **Adminer** : is available for database management and runs on port 8081
+- **Adminer** : is available for database management and runs on port `8081`
 ```text
 http://localhost:8081           
 ```
