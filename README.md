@@ -101,7 +101,7 @@ If you're running the application without Docker, follow these steps:
 To build the application into a binary executable, use the following command:
 
 ```bash
-go build -o myapp ./cmd/main.go
+go build -o main ./cmd/main.go
 ```
 
 - This command compiles the application and creates an executable named `main` in the root directory.
